@@ -86,7 +86,7 @@
             border-right: 1px solid #cbd5e1;
         }
 
-        /* 右ペイン幅を従来(50vw/320px)の1/3程度（約17vw / 80~110px）に縮小 */
+        /* 右ペイン幅: 約17vw / 80~110px */
         #right-pane {
             right: 0;
             width: 17vw;
@@ -201,7 +201,7 @@
 </head>
 <body id="app-body" class="h-screen w-screen overflow-hidden text-slate-700 select-none">
 
-    <!-- 浮遊指示ボタン (白抜き文字・円枠なし) -->
+    <!-- 浮遊指示ボタン -->
     <button id="btn-float-left" class="floating-btn" aria-label="左メニュー表示">＞</button>
     <button id="btn-float-right" class="floating-btn" aria-label="右メニュー表示">＜</button>
 
@@ -274,7 +274,7 @@
         </div>
     </aside>
 
-    <!-- ================= メイン領域 (100%全画面画用紙) ================= -->
+    <!-- ================= メイン領域 ================= -->
     <main class="w-full h-full relative overflow-hidden flex justify-center items-center">
         <div id="canvas-container">
             <div id="canvas-wrapper">
@@ -293,7 +293,7 @@
         </div>
     </main>
 
-    <!-- ================= 右ペイン (スリム化: 横幅1/3) ================= -->
+    <!-- ================= 右ペイン ================= -->
     <aside id="right-pane" class="drawer-pane scalable-ui">
         <div class="p-2 border-b border-slate-200 text-center font-black tracking-widest text-slate-800 text-xs bg-slate-50 flex justify-between items-center shrink-0">
             <button id="btn-close-right" class="text-slate-400 hover:text-slate-700 font-bold px-1 text-sm">＞</button>
@@ -302,7 +302,7 @@
         <div class="flex-grow overflow-y-auto p-1 flex flex-col space-y-2">
             <div class="bg-slate-50 p-1 rounded-lg border border-slate-200 space-y-1.5">
                 <button id="btn-load" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-2.5 px-0.5 rounded text-xs transition-all text-center">読込</button>
-                <button id="btn-save-as" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-2.5 px-0.5 rounded text-xs transition-all text-center">保存</button>
+                <button id="btn-save-as" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-2.5 px-0.5 rounded text-xs transition-all text-center">共有(保存)</button>
             </div>
             
             <div class="bg-slate-50 p-1 rounded-lg border border-slate-200 space-y-1.5">
@@ -429,11 +429,11 @@
     <!-- 書き出しモーダル -->
     <div id="done-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4 transform transition-all text-slate-700">
-            <h2 class="text-lg font-bold border-b border-slate-100 pb-3">画像出力・保存</h2>
+            <h2 class="text-lg font-bold border-b border-slate-100 pb-3">画像出力・共有</h2>
             <div class="space-y-3 text-base">
-                <button id="btn-export-bg" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3.5 px-4 rounded-lg shadow-sm text-left transition-colors">描画と背景と画用紙を合成して保存</button>
-                <button id="btn-export-paper" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3.5 px-4 rounded-lg shadow-sm text-left transition-colors">描画と画用紙を合成して保存</button>
-                <button id="btn-export-transparent" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3.5 px-4 rounded-lg shadow-sm text-left transition-colors">描画のみ保存（透過性PNG）</button>
+                <button id="btn-export-bg" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3.5 px-4 rounded-lg shadow-sm text-left transition-colors">描画と背景と画用紙を共有</button>
+                <button id="btn-export-paper" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3.5 px-4 rounded-lg shadow-sm text-left transition-colors">描画と画用紙を共有</button>
+                <button id="btn-export-transparent" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3.5 px-4 rounded-lg shadow-sm text-left transition-colors">描画のみ共有（透過PNG）</button>
             </div>
             <div class="pt-2 flex justify-end border-t border-slate-100 mt-3">
                 <button id="btn-close-done" class="bg-slate-200 hover:bg-slate-300 font-bold py-2 px-6 rounded-lg shadow-sm transition-all text-sm">戻る</button>
@@ -629,6 +629,7 @@
                 });
             }
 
+            /* 保存（共有シート対応） */
             async saveAsFile() {
                 try {
                     const filename = this.getDailySequenceFilename();
@@ -654,23 +655,17 @@
                         }
                     };
                     const jsonStr = JSON.stringify(stgData);
-                    const blob = new Blob([jsonStr], { type: 'application/json' });
-                    
-                    // iOS/Safari互換ダウンロード処理
-                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-                    if (isIOS || !window.URL) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const a = document.createElement('a');
-                            a.href = reader.result;
-                            a.download = filename;
-                            a.target = '_blank';
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                        };
-                        reader.readAsDataURL(blob);
+                    const file = new File([jsonStr], filename, { type: 'application/json' });
+
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: 'EMPITSU プロジェクトデータ',
+                            text: '作品データ(.emp)を保存します。'
+                        });
                     } else {
+                        // Web Shareが使えない環境向けのフォールバック
+                        const blob = new Blob([jsonStr], { type: 'application/json' });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
@@ -683,8 +678,10 @@
                     
                     this.app.historyManager.reset();
                 } catch (e) {
-                    console.error("保存エラー", e);
-                    alert("保存中にエラーが発生しました。");
+                    if (e.name !== 'AbortError') {
+                        console.error("共有エラー", e);
+                        alert("保存・共有中にエラーが発生しました。");
+                    }
                 }
             }
 
@@ -872,7 +869,6 @@
                 }
             }
 
-            /* 用紙回転時に背景が取り残されないよう修正: 常に画用紙座標に固定して描画 */
             render() {
                 this.bgCtx.clearRect(0, 0, this.bgCanvas.width, this.bgCanvas.height);
                 if (!this.currentImage) return;
@@ -1311,7 +1307,6 @@
                 this.pointers = new Map();
                 this.transform = { x: 0, y: 0, scale: 1, rotation: 0 };
                 
-                /* 最小・最大ズーム範囲の設定: 長辺(1414px)が約300px基準になる最小スケール(約0.21) ~ 拡大4.0 (400%) */
                 this.minScale = 0.21;
                 this.maxScale = 4.0;
                 
@@ -1593,10 +1588,8 @@
                 btnCloseLeft.onclick = closeLeft;
                 btnCloseRight.onclick = closeRight;
 
-                // --- エッジフリック / スワイプジェスチャー ---
                 let startX = 0, startY = 0;
 
-                // 左端エッジ検出 -> 左ペイン開く
                 document.getElementById('edge-left').addEventListener('touchstart', (e) => {
                     startX = e.touches[0].clientX;
                     startY = e.touches[0].clientY;
@@ -1608,7 +1601,6 @@
                     if (dx > 30 && dy < 60) openLeft();
                 }, { passive: true });
 
-                // 右端エッジ検出 -> 右ペイン開く
                 document.getElementById('edge-right').addEventListener('touchstart', (e) => {
                     startX = e.touches[0].clientX;
                     startY = e.touches[0].clientY;
@@ -1620,7 +1612,6 @@
                     if (dx > 30 && dy < 60) openRight();
                 }, { passive: true });
 
-                // ペイン内からの閉じるスワイプ
                 leftPane.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; }, { passive: true });
                 leftPane.addEventListener('touchend', (e) => {
                     const dx = startX - e.changedTouches[0].clientX;
@@ -1655,7 +1646,6 @@
                 const btnRotate = document.getElementById('btn-rotate-paper');
                 if (btnRotate) btnRotate.onclick = () => {
                     this.canvasCore.rotatePaper();
-                    // 用紙回転時にも背景を再同期描画
                     this.bgManager.render();
                     this.historyManager.saveState();
                 };
@@ -1752,8 +1742,8 @@
                 document.getElementById('btn-export-transparent').onclick = () => this.exportImage('transparent');
             }
 
-            /* 画像書き出し処理のiOS/モバイル保存不具合修正 */
-            exportImage(type) {
+            /* 画像出力・共有シート対応 */
+            async exportImage(type) {
                 const canvas = document.createElement('canvas');
                 const rot = this.canvasCore.transform.rotation % 360;
                 const isVertical = Math.abs(rot) === 90 || Math.abs(rot) === 270;
@@ -1782,32 +1772,40 @@
                     finalCanvas = this.cropCanvas(canvas);
                 }
 
-                const dataURL = finalCanvas.toDataURL('image/png');
                 const filename = `empitsu_${new Date().getTime()}.png`;
 
-                // モバイル/Safari環境でのダウンロード不具合対策
-                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-                if (isIOS) {
-                    const newWin = window.open();
-                    if (newWin) {
-                        newWin.document.write(`<img src="${dataURL}" style="max-width:100%;height:auto;"/><p style="text-align:center;font-family:sans-serif;">画像を長押しして保存してください</p>`);
-                    } else {
-                        const a = document.createElement('a');
-                        a.href = dataURL;
-                        a.download = filename;
-                        a.target = '_blank';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
+                finalCanvas.toBlob(async (blob) => {
+                    if (!blob) {
+                        alert("画像の生成に失敗しました。");
+                        return;
                     }
-                } else {
-                    const a = document.createElement('a');
-                    a.href = dataURL;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                }
+                    const file = new File([blob], filename, { type: 'image/png' });
+
+                    try {
+                        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                            await navigator.share({
+                                files: [file],
+                                title: 'EMPITSU イラスト出力',
+                                text: '作成したイラストを共有・保存します。'
+                            });
+                        } else {
+                            // フォールバック: データURIまたはオブジェクトURLを開く
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            setTimeout(() => URL.revokeObjectURL(url), 1000);
+                        }
+                    } catch (e) {
+                        if (e.name !== 'AbortError') {
+                            console.error("共有エラー", e);
+                            alert("出力共有中にエラーが発生しました。");
+                        }
+                    }
+                }, 'image/png');
                 
                 document.getElementById('done-modal').classList.add('hidden');
             }
