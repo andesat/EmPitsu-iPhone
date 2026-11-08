@@ -63,14 +63,11 @@
             border-radius: 4px;
         }
 
-        /* 隠しドロワーペイン (幅50vw) */
+        /* 隠しドロワーペイン */
         .drawer-pane {
             position: fixed;
             top: 0;
             bottom: 0;
-            width: 50vw;
-            max-width: 320px;
-            min-width: 220px;
             background-color: rgba(255, 255, 255, 0.96);
             backdrop-filter: blur(10px);
             z-index: 40;
@@ -82,12 +79,19 @@
 
         #left-pane {
             left: 0;
+            width: 50vw;
+            max-width: 320px;
+            min-width: 220px;
             transform: translateX(-100%);
             border-right: 1px solid #cbd5e1;
         }
 
+        /* 右ペイン幅を従来(50vw/320px)の1/3程度（約17vw / 80~110px）に縮小 */
         #right-pane {
             right: 0;
+            width: 17vw;
+            max-width: 110px;
+            min-width: 80px;
             transform: translateX(100%);
             border-left: 1px solid #cbd5e1;
         }
@@ -106,32 +110,32 @@
         #edge-left { left: 0; }
         #edge-right { right: 0; }
 
-        /* 浮遊指示ボタン */
+        /* 浮遊指示ボタン（白抜き文字・大きめの当たり判定） */
         .floating-btn {
             position: fixed;
-            top: calc(1rem + env(safe-area-inset-top));
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            background-color: rgba(255, 255, 255, 0.75);
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(203, 213, 225, 0.8);
-            color: #334155;
-            font-weight: bold;
-            font-size: 1.1rem;
+            top: calc(0.75rem + env(safe-area-inset-top));
+            width: 48px;
+            height: 48px;
+            border: none;
+            background: transparent;
+            color: #ffffff;
+            font-weight: 900;
+            font-size: 1.4rem;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 2px rgba(0,0,0,0.9);
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 30;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-            transition: all 0.2s ease;
+            transition: transform 0.15s ease, opacity 0.15s ease;
+            cursor: pointer;
+            opacity: 0.85;
         }
         .floating-btn:active {
-            transform: scale(0.92);
-            background-color: rgba(255, 255, 255, 0.95);
+            transform: scale(0.85);
+            opacity: 1;
         }
-        #btn-float-left { left: 1rem; }
-        #btn-float-right { right: 1rem; }
+        #btn-float-left { left: 0.5rem; }
+        #btn-float-right { right: 0.5rem; }
 
         #sample-container {
             position: absolute;
@@ -197,7 +201,7 @@
 </head>
 <body id="app-body" class="h-screen w-screen overflow-hidden text-slate-700 select-none">
 
-    <!-- 浮遊指示ボタン -->
+    <!-- 浮遊指示ボタン (白抜き文字・円枠なし) -->
     <button id="btn-float-left" class="floating-btn" aria-label="左メニュー表示">＞</button>
     <button id="btn-float-right" class="floating-btn" aria-label="右メニュー表示">＜</button>
 
@@ -289,29 +293,29 @@
         </div>
     </main>
 
-    <!-- ================= 右ペイン (ドロワー) ================= -->
+    <!-- ================= 右ペイン (スリム化: 横幅1/3) ================= -->
     <aside id="right-pane" class="drawer-pane scalable-ui">
-        <div class="p-3 border-b border-slate-200 text-center font-black tracking-widest text-slate-800 text-base bg-slate-50 flex justify-between items-center shrink-0">
-            <button id="btn-close-right" class="text-slate-400 hover:text-slate-700 font-bold px-2 text-lg">＞</button>
-            <span>メニュー</span>
+        <div class="p-2 border-b border-slate-200 text-center font-black tracking-widest text-slate-800 text-xs bg-slate-50 flex justify-between items-center shrink-0">
+            <button id="btn-close-right" class="text-slate-400 hover:text-slate-700 font-bold px-1 text-sm">＞</button>
+            <span>操作</span>
         </div>
-        <div class="flex-grow overflow-y-auto p-2.5 flex flex-col space-y-3">
-            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-2">
-                <button id="btn-load" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-3 px-2 rounded text-sm transition-all text-center">読込</button>
-                <button id="btn-save-as" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-3 px-2 rounded text-sm transition-all text-center">保存</button>
+        <div class="flex-grow overflow-y-auto p-1 flex flex-col space-y-2">
+            <div class="bg-slate-50 p-1 rounded-lg border border-slate-200 space-y-1.5">
+                <button id="btn-load" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-2.5 px-0.5 rounded text-xs transition-all text-center">読込</button>
+                <button id="btn-save-as" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-2.5 px-0.5 rounded text-xs transition-all text-center">保存</button>
             </div>
             
-            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-2">
-                <button id="btn-bg" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-3 px-2 rounded text-sm transition-all text-center">背景</button>
-                <button id="btn-sample" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-3 px-2 rounded text-sm transition-all text-center">手本</button>
+            <div class="bg-slate-50 p-1 rounded-lg border border-slate-200 space-y-1.5">
+                <button id="btn-bg" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-2.5 px-0.5 rounded text-xs transition-all text-center">背景</button>
+                <button id="btn-sample" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-2.5 px-0.5 rounded text-xs transition-all text-center">手本</button>
             </div>
 
-            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200">
-                <button id="btn-done" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-3 px-2 rounded text-sm transition-all text-center">出力</button>
+            <div class="bg-slate-50 p-1 rounded-lg border border-slate-200">
+                <button id="btn-done" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-2.5 px-0.5 rounded text-xs transition-all text-center">出力</button>
             </div>
 
-            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 mt-auto">
-                <button id="btn-settings" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-3 px-2 rounded text-sm transition-all text-center">設定</button>
+            <div class="bg-slate-50 p-1 rounded-lg border border-slate-200 mt-auto">
+                <button id="btn-settings" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-2.5 px-0.5 rounded text-xs transition-all text-center">設定</button>
             </div>
         </div>
     </aside>
@@ -651,16 +655,32 @@
                     };
                     const jsonStr = JSON.stringify(stgData);
                     const blob = new Blob([jsonStr], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
                     
-                    alert("ダウンロードフォルダに保存しました。");
+                    // iOS/Safari互換ダウンロード処理
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                    if (isIOS || !window.URL) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const a = document.createElement('a');
+                            a.href = reader.result;
+                            a.download = filename;
+                            a.target = '_blank';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        };
+                        reader.readAsDataURL(blob);
+                    } else {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    }
+                    
                     this.app.historyManager.reset();
                 } catch (e) {
                     console.error("保存エラー", e);
@@ -852,6 +872,7 @@
                 }
             }
 
+            /* 用紙回転時に背景が取り残されないよう修正: 常に画用紙座標に固定して描画 */
             render() {
                 this.bgCtx.clearRect(0, 0, this.bgCanvas.width, this.bgCanvas.height);
                 if (!this.currentImage) return;
@@ -859,20 +880,11 @@
                 const alpha = parseInt(document.getElementById('slider-bg-opacity').value) / 10;
                 this.bgCtx.globalAlpha = alpha;
 
-                const rotation = this.canvasCore.transform.rotation % 360;
-                const rad = -rotation * Math.PI / 180;
-
                 this.bgCtx.save();
                 this.bgCtx.translate(this.bgCanvas.width / 2, this.bgCanvas.height / 2);
-                this.bgCtx.rotate(rad);
 
-                let paperW = this.bgCanvas.width;
-                let paperH = this.bgCanvas.height;
-                if (Math.abs(rotation) === 90 || Math.abs(rotation) === 270) {
-                    paperW = this.bgCanvas.height;
-                    paperH = this.bgCanvas.width;
-                }
-
+                const paperW = this.bgCanvas.width;
+                const paperH = this.bgCanvas.height;
                 const imgW = this.currentImage.width;
                 const imgH = this.currentImage.height;
 
@@ -1298,6 +1310,11 @@
                 
                 this.pointers = new Map();
                 this.transform = { x: 0, y: 0, scale: 1, rotation: 0 };
+                
+                /* 最小・最大ズーム範囲の設定: 長辺(1414px)が約300px基準になる最小スケール(約0.21) ~ 拡大4.0 (400%) */
+                this.minScale = 0.21;
+                this.maxScale = 4.0;
+                
                 this.initScale();
                 
                 this.lastPinchDistance = null;
@@ -1322,7 +1339,7 @@
                 if (containerRect.width > 0 && containerRect.height > 0) {
                     const scaleX = containerRect.width / this.width;
                     const scaleY = containerRect.height / this.height;
-                    this.transform.scale = Math.min(scaleX, scaleY) * 0.95;
+                    this.transform.scale = Math.max(this.minScale, Math.min(Math.min(scaleX, scaleY) * 0.95, this.maxScale));
                 }
             }
 
@@ -1359,7 +1376,7 @@
                     const cy = rect.top + rect.height / 2;
                     const vx = e.clientX - cx;
                     const vy = e.clientY - cy;
-                    let newScale = Math.max(0.3, Math.min(this.transform.scale * (1 - e.deltaY * 0.0015), 5.0));
+                    let newScale = Math.max(this.minScale, Math.min(this.transform.scale * (1 - e.deltaY * 0.0015), this.maxScale));
                     const actualRatio = newScale / this.transform.scale;
                     this.transform.x += vx * (1 - actualRatio);
                     this.transform.y += vy * (1 - actualRatio);
@@ -1448,7 +1465,7 @@
                     const center = { x: (pts[0].clientX + pts[1].clientX) / 2, y: (pts[0].clientY + pts[1].clientY) / 2 };
 
                     if (this.lastPinchDistance && this.lastPinchCenter) {
-                        let newScale = Math.max(0.3, Math.min(this.transform.scale * (dist / this.lastPinchDistance), 5.0));
+                        let newScale = Math.max(this.minScale, Math.min(this.transform.scale * (dist / this.lastPinchDistance), this.maxScale));
                         const actualRatio = newScale / this.transform.scale;
                         const rect = this.canvas.getBoundingClientRect();
                         const cx = rect.left + rect.width / 2;
@@ -1548,13 +1565,13 @@
                 if (this.settings.handedness === 'left') {
                     body.classList.add('flex-reverse');
                     btnFloatLeft.textContent = '＜'; btnFloatRight.textContent = '＞';
-                    btnFloatLeft.style.left = 'auto'; btnFloatLeft.style.right = '1rem';
-                    btnFloatRight.style.right = 'auto'; btnFloatRight.style.left = '1rem';
+                    btnFloatLeft.style.left = 'auto'; btnFloatLeft.style.right = '0.5rem';
+                    btnFloatRight.style.right = 'auto'; btnFloatRight.style.left = '0.5rem';
                 } else {
                     body.classList.remove('flex-reverse');
                     btnFloatLeft.textContent = '＞'; btnFloatRight.textContent = '＜';
-                    btnFloatLeft.style.right = 'auto'; btnFloatLeft.style.left = '1rem';
-                    btnFloatRight.style.left = 'auto'; btnFloatRight.style.right = '1rem';
+                    btnFloatLeft.style.right = 'auto'; btnFloatLeft.style.left = '0.5rem';
+                    btnFloatRight.style.left = 'auto'; btnFloatRight.style.right = '0.5rem';
                 }
             }
 
@@ -1577,7 +1594,7 @@
                 btnCloseRight.onclick = closeRight;
 
                 // --- エッジフリック / スワイプジェスチャー ---
-                let startX = 0, startY = 0, currentPane = null;
+                let startX = 0, startY = 0;
 
                 // 左端エッジ検出 -> 左ペイン開く
                 document.getElementById('edge-left').addEventListener('touchstart', (e) => {
@@ -1638,6 +1655,8 @@
                 const btnRotate = document.getElementById('btn-rotate-paper');
                 if (btnRotate) btnRotate.onclick = () => {
                     this.canvasCore.rotatePaper();
+                    // 用紙回転時にも背景を再同期描画
+                    this.bgManager.render();
                     this.historyManager.saveState();
                 };
             }
@@ -1696,7 +1715,6 @@
                         this.updateEraserCursor(null);
                         selectedColorNameDiv.textContent = colorObj.name;
                         
-                        // 選択後、自動でドロワーを閉じる
                         if (this.closeDrawers) this.closeDrawers();
                     };
                     btn.dataset.hex = colorObj.hex;
@@ -1716,7 +1734,6 @@
                     if (this.closeDrawers) this.closeDrawers();
                 };
 
-                // 初期状態：黒
                 if (paletteBtns.length > 0) paletteBtns[0].click();
             }
 
@@ -1735,6 +1752,7 @@
                 document.getElementById('btn-export-transparent').onclick = () => this.exportImage('transparent');
             }
 
+            /* 画像書き出し処理のiOS/モバイル保存不具合修正 */
             exportImage(type) {
                 const canvas = document.createElement('canvas');
                 const rot = this.canvasCore.transform.rotation % 360;
@@ -1765,12 +1783,31 @@
                 }
 
                 const dataURL = finalCanvas.toDataURL('image/png');
-                const a = document.createElement('a');
-                a.href = dataURL;
-                a.download = `empitsu_${new Date().getTime()}.png`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+                const filename = `empitsu_${new Date().getTime()}.png`;
+
+                // モバイル/Safari環境でのダウンロード不具合対策
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                if (isIOS) {
+                    const newWin = window.open();
+                    if (newWin) {
+                        newWin.document.write(`<img src="${dataURL}" style="max-width:100%;height:auto;"/><p style="text-align:center;font-family:sans-serif;">画像を長押しして保存してください</p>`);
+                    } else {
+                        const a = document.createElement('a');
+                        a.href = dataURL;
+                        a.download = filename;
+                        a.target = '_blank';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    }
+                } else {
+                    const a = document.createElement('a');
+                    a.href = dataURL;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }
                 
                 document.getElementById('done-modal').classList.add('hidden');
             }
