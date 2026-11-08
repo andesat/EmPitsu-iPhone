@@ -1,0 +1,1895 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>EMPITSU</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --ui-scale: 0.9;
+        }
+
+        body {
+            touch-action: none;
+            overflow: hidden;
+            -webkit-user-select: none;
+            user-select: none;
+            font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", "sans-serif";
+            background-color: #0f172a;
+        }
+        
+        #canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100vw;
+            height: 100vh;
+            background-color: #334155;
+            box-sizing: border-box;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #canvas-wrapper {
+            position: relative;
+            width: 1000px;
+            height: 1414px;
+            transform-origin: center center;
+            will-change: transform;
+            flex-shrink: 0;
+        }
+
+        #bg-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #ffffff;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+            border-radius: 4px;
+            pointer-events: none;
+        }
+
+        #main-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: transparent;
+            -webkit-tap-highlight-color: transparent;
+            border-radius: 4px;
+        }
+
+        /* 隠しドロワーペイン (幅50vw) */
+        .drawer-pane {
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            width: 50vw;
+            max-width: 320px;
+            min-width: 220px;
+            background-color: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(10px);
+            z-index: 40;
+            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+        }
+
+        #left-pane {
+            left: 0;
+            transform: translateX(-100%);
+            border-right: 1px solid #cbd5e1;
+        }
+
+        #right-pane {
+            right: 0;
+            transform: translateX(100%);
+            border-left: 1px solid #cbd5e1;
+        }
+
+        #left-pane.open { transform: translateX(0); }
+        #right-pane.open { transform: translateX(0); }
+
+        /* エッジタッチ検出領域 (画面左右端) */
+        .edge-detector {
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            width: 24px;
+            z-index: 35;
+        }
+        #edge-left { left: 0; }
+        #edge-right { right: 0; }
+
+        /* 浮遊指示ボタン */
+        .floating-btn {
+            position: fixed;
+            top: calc(1rem + env(safe-area-inset-top));
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(203, 213, 225, 0.8);
+            color: #334155;
+            font-weight: bold;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            transition: all 0.2s ease;
+        }
+        .floating-btn:active {
+            transform: scale(0.92);
+            background-color: rgba(255, 255, 255, 0.95);
+        }
+        #btn-float-left { left: 1rem; }
+        #btn-float-right { right: 1rem; }
+
+        #sample-container {
+            position: absolute;
+            display: none;
+            z-index: 25;
+            transform-origin: top left;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            background-color: transparent;
+            touch-action: none;
+        }
+        #sample-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            pointer-events: none;
+        }
+        .sample-focused {
+            outline: 2px solid #475569;
+            outline-offset: 2px;
+        }
+        .resize-handle {
+            position: absolute;
+            width: 36px;
+            height: 36px;
+            background-color: rgba(255, 255, 255, 0.85);
+            border: 1px solid #475569;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 26;
+            touch-action: none;
+        }
+        .sample-focused .resize-handle { display: flex; }
+        #handle-tl { top: -18px; left: -18px; cursor: nwse-resize; }
+        #handle-tr { top: -18px; right: -18px; cursor: nesw-resize; }
+        #handle-bl { bottom: -18px; left: -18px; cursor: nesw-resize; }
+        #handle-br { bottom: -18px; right: -18px; cursor: nwse-resize; }
+
+        .tool-active {
+            background-color: #334155 !important;
+            color: #ffffff !important;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3) !important;
+            border-color: #1e293b !important;
+        }
+        .posture-active {
+            background-color: #334155 !important;
+            color: #ffffff !important;
+            border-color: #1e293b !important;
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .scalable-ui { zoom: var(--ui-scale); }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: #475569; cursor: pointer; margin-top: -5px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 8px; cursor: pointer; background: #e2e8f0; border-radius: 4px; }
+        .tick-marks { display: flex; justify-content: space-between; padding: 0 4px; margin-top: 2px; font-size: 10px; color: #64748b; font-weight: bold; }
+        .tick-labels { display: flex; justify-content: space-between; margin-top: 2px; font-size: 11px; color: #475569; font-weight: bold; }
+        .flex-reverse { flex-direction: row-reverse !important; }
+    </style>
+</head>
+<body id="app-body" class="h-screen w-screen overflow-hidden text-slate-700 select-none">
+
+    <!-- 浮遊指示ボタン -->
+    <button id="btn-float-left" class="floating-btn" aria-label="左メニュー表示">＞</button>
+    <button id="btn-float-right" class="floating-btn" aria-label="右メニュー表示">＜</button>
+
+    <!-- エッジスワイプ判定エリア -->
+    <div id="edge-left" class="edge-detector"></div>
+    <div id="edge-right" class="edge-detector"></div>
+
+    <!-- 隠しファイル入力 -->
+    <input type="file" id="file-input-emp" accept=".emp,.stg,application/json" class="hidden">
+    <input type="file" id="file-input-bg" accept="image/*" class="hidden">
+    <input type="file" id="file-input-sample" accept="image/*" class="hidden">
+
+    <!-- ================= 左ペイン (ドロワー) ================= -->
+    <aside id="left-pane" class="drawer-pane scalable-ui">
+        <div class="p-3 border-b border-slate-200 text-center font-black tracking-widest text-slate-800 text-base bg-slate-50 flex justify-between items-center shrink-0">
+            <span>EMPITSU</span>
+            <button id="btn-close-left" class="text-slate-400 hover:text-slate-700 font-bold px-2 text-lg">＜</button>
+        </div>
+        <div class="flex-grow overflow-y-auto p-2.5 flex flex-col space-y-2.5">
+            <!-- 姿勢切替 -->
+            <div class="bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button id="btn-posture-tateru" class="posture-btn posture-active bg-white border border-slate-300 rounded py-2 text-xs font-bold transition-all text-center">６０°</button>
+                    <button id="btn-posture-nekaseru" class="posture-btn bg-white border border-slate-300 rounded py-2 text-xs font-bold transition-all text-center">２０°</button>
+                </div>
+            </div>
+
+            <!-- カラーパレット (24色) -->
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-1.5">
+                <div id="selected-color-name" class="text-center text-xs font-bold text-slate-600 py-0.5">黒</div>
+                <div id="color-palette" class="grid grid-cols-3 gap-1.5 px-0.5"></div>
+            </div>
+
+            <!-- 消しゴム -->
+            <div class="bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                <button id="btn-eraser" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-2.5 px-1 rounded text-sm transition-all text-center">消しゴム</button>
+            </div>
+            
+            <!-- 用紙回転 -->
+            <div class="bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                <button id="btn-rotate-paper" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-2.5 px-1 rounded text-sm transition-all text-center">用紙回転</button>
+            </div>
+
+            <!-- 鉛筆の太さスライダー -->
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-1">
+                <label class="block text-center font-bold text-xs text-slate-700">鉛筆の太さ</label>
+                <input id="left-slider-pencil-thick" type="range" min="-2" max="2" value="0">
+                <div class="tick-marks"><span>-2</span><span>-1</span><span>0</span><span>1</span><span>2</span></div>
+                <div class="tick-labels">
+                    <button class="text-slate-600 font-bold px-1" onclick="document.getElementById('left-slider-pencil-thick').stepDown(); document.getElementById('left-slider-pencil-thick').dispatchEvent(new Event('input'))">[-] 細</button>
+                    <button class="text-slate-600 font-bold px-1" onclick="document.getElementById('left-slider-pencil-thick').stepUp(); document.getElementById('left-slider-pencil-thick').dispatchEvent(new Event('input'))">太 [+]</button>
+                </div>
+            </div>
+
+            <!-- 鉛筆の濃さスライダー -->
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-1">
+                <label class="block text-center font-bold text-xs text-slate-700">鉛筆の濃さ</label>
+                <input id="left-slider-pencil-op" type="range" min="-4" max="4" value="0">
+                <div class="tick-marks"><span>-4</span><span>-2</span><span>0</span><span>2</span><span>4</span></div>
+                <div class="tick-labels">
+                    <button class="text-slate-600 font-bold px-1" onclick="document.getElementById('left-slider-pencil-op').stepDown(); document.getElementById('left-slider-pencil-op').dispatchEvent(new Event('input'))">[-] 薄</button>
+                    <button class="text-slate-600 font-bold px-1" onclick="document.getElementById('left-slider-pencil-op').stepUp(); document.getElementById('left-slider-pencil-op').dispatchEvent(new Event('input'))">濃 [+]</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-2.5 border-t border-slate-200 bg-slate-50 flex justify-between space-x-2 shrink-0">
+            <button id="btn-undo" class="flex-1 bg-white hover:bg-slate-100 font-bold py-2.5 rounded border border-slate-300 text-xl transition-colors leading-none" title="元に戻す">↩</button>
+            <button id="btn-redo" class="flex-1 bg-white hover:bg-slate-100 font-bold py-2.5 rounded border border-slate-300 text-xl transition-colors leading-none" title="やり直す">↪</button>
+        </div>
+    </aside>
+
+    <!-- ================= メイン領域 (100%全画面画用紙) ================= -->
+    <main class="w-full h-full relative overflow-hidden flex justify-center items-center">
+        <div id="canvas-container">
+            <div id="canvas-wrapper">
+                <canvas id="bg-canvas" width="1000" height="1414"></canvas>
+                <canvas id="main-canvas" width="1000" height="1414"></canvas>
+                <div id="eraser-cursor" class="hidden absolute rounded-full border border-slate-500 bg-slate-500/10 pointer-events-none z-50" style="width: 60px; height: 60px; margin-top: -30px; margin-left: -30px; top: 0; left: 0;"></div>
+            </div>
+            
+            <div id="sample-container">
+                <img id="sample-image" src="" alt="">
+                <div id="handle-tl" class="resize-handle" data-dir="tl"></div>
+                <div id="handle-tr" class="resize-handle" data-dir="tr"></div>
+                <div id="handle-bl" class="resize-handle" data-dir="bl"></div>
+                <div id="handle-br" class="resize-handle" data-dir="br"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ================= 右ペイン (ドロワー) ================= -->
+    <aside id="right-pane" class="drawer-pane scalable-ui">
+        <div class="p-3 border-b border-slate-200 text-center font-black tracking-widest text-slate-800 text-base bg-slate-50 flex justify-between items-center shrink-0">
+            <button id="btn-close-right" class="text-slate-400 hover:text-slate-700 font-bold px-2 text-lg">＞</button>
+            <span>メニュー</span>
+        </div>
+        <div class="flex-grow overflow-y-auto p-2.5 flex flex-col space-y-3">
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-2">
+                <button id="btn-load" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-3 px-2 rounded text-sm transition-all text-center">読込</button>
+                <button id="btn-save-as" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-3 px-2 rounded text-sm transition-all text-center">保存</button>
+            </div>
+            
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-2">
+                <button id="btn-bg" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-3 px-2 rounded text-sm transition-all text-center">背景</button>
+                <button id="btn-sample" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-3 px-2 rounded text-sm transition-all text-center">手本</button>
+            </div>
+
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                <button id="btn-done" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-3 px-2 rounded text-sm transition-all text-center">出力</button>
+            </div>
+
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 mt-auto">
+                <button id="btn-settings" class="w-full bg-white border border-slate-300 hover:bg-slate-100 font-bold py-3 px-2 rounded text-sm transition-all text-center">設定</button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ================= モーダル群 ================= -->
+    <!-- 設定モーダル -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-5 transform transition-all text-slate-700">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h2 class="text-lg font-bold flex items-center gap-2">設定</h2>
+                <button id="btn-close-settings" class="text-slate-400 hover:text-slate-600 font-bold text-2xl px-2">×</button>
+            </div>
+            <div class="space-y-5 text-base">
+                <div>
+                    <label class="block font-bold mb-2">利き手</label>
+                    <div class="flex justify-center items-center gap-6 mt-1">
+                        <label class="flex items-center gap-2 cursor-pointer font-bold"><input type="radio" name="handedness" value="right" class="w-4 h-4 accent-slate-700 cursor-pointer" checked>右手利き</label>
+                        <label class="flex items-center gap-2 cursor-pointer font-bold"><input type="radio" name="handedness" value="left" class="w-4 h-4 accent-slate-700 cursor-pointer">左手利き</label>
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-bold mb-1.5">UI倍率</label>
+                    <input id="slider-ui-scale" type="range" min="-4" max="4" value="0">
+                    <div class="tick-marks"><span>-4</span><span>-3</span><span>-2</span><span>-1</span><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span></div>
+                    <div class="tick-labels">
+                        <button class="text-slate-600 font-bold" onclick="document.getElementById('slider-ui-scale').stepDown(); document.getElementById('slider-ui-scale').dispatchEvent(new Event('input'))">[-] 小</button>
+                        <button class="text-slate-600 font-bold" onclick="document.getElementById('slider-ui-scale').stepUp(); document.getElementById('slider-ui-scale').dispatchEvent(new Event('input'))">大 [+]</button>
+                    </div>
+                </div>
+            </div>
+            <div class="pt-2">
+                <button id="btn-apply-settings" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg shadow-sm transition-all text-center text-base">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 背景モーダル -->
+    <div id="bg-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-5 transform transition-all text-slate-700">
+            <h2 class="text-lg font-bold border-b border-slate-100 pb-3">背景設定</h2>
+            <div class="space-y-3 text-base">
+                <button id="btn-bg-paste" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3 px-4 rounded-lg shadow-sm text-left flex items-center transition-colors">
+                    <div>
+                        <div>クリップボードから貼り付け</div>
+                        <div class="text-xs text-slate-400 font-semibold mt-0.5">ショートカット (Ctrl + V) も利用できます</div>
+                    </div>
+                </button>
+                <button id="btn-bg-file" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3 px-4 rounded-lg shadow-sm text-left flex items-center transition-colors">ファイルから読込</button>
+                <button id="btn-bg-clear" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-red-600 font-bold py-3 px-4 rounded-lg shadow-sm text-left flex items-center transition-colors">背景を削除</button>
+                <hr class="border-slate-200 my-2">
+                <div>
+                    <label class="block font-bold mb-2 text-center text-sm">背景不透明度</label>
+                    <input id="slider-bg-opacity" type="range" min="1" max="10" value="10">
+                    <div class="tick-marks"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span></div>
+                    <div class="tick-labels">
+                        <button class="text-slate-600 font-bold" onclick="document.getElementById('slider-bg-opacity').stepDown(); document.getElementById('slider-bg-opacity').dispatchEvent(new Event('input'))">[-] 薄</button>
+                        <button class="text-slate-600 font-bold" onclick="document.getElementById('slider-bg-opacity').stepUp(); document.getElementById('slider-bg-opacity').dispatchEvent(new Event('input'))">濃 [+]</button>
+                    </div>
+                </div>
+            </div>
+            <div class="pt-2 flex justify-end">
+                <button id="btn-close-bg" class="bg-slate-200 hover:bg-slate-300 font-bold py-2 px-6 rounded-lg shadow-sm transition-all text-sm">戻る</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 手本モーダル -->
+    <div id="sample-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-5 transform transition-all text-slate-700">
+            <h2 class="text-lg font-bold border-b border-slate-100 pb-3">手本設定</h2>
+            <div class="space-y-3 text-base">
+                <button id="btn-sample-paste" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3 px-4 rounded-lg shadow-sm text-left flex items-center transition-colors">
+                    <div>
+                        <div>クリップボードから貼り付け</div>
+                        <div class="text-xs text-slate-400 font-semibold mt-0.5">ショートカット (Ctrl + V) も利用できます</div>
+                    </div>
+                </button>
+                <button id="btn-sample-file" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3 px-4 rounded-lg shadow-sm text-left flex items-center transition-colors">ファイルから読込</button>
+                <button id="btn-sample-clear" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-red-600 font-bold py-3 px-4 rounded-lg shadow-sm text-left flex items-center transition-colors">手本を削除</button>
+            </div>
+            <div class="pt-2 flex justify-end">
+                <button id="btn-close-sample" class="bg-slate-200 hover:bg-slate-300 font-bold py-2 px-6 rounded-lg shadow-sm transition-all text-sm">戻る</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 貼り方モーダル -->
+    <div id="paste-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4 transform transition-all text-slate-700">
+            <h2 class="text-base font-bold border-b border-slate-100 pb-2 text-center">配置方法を選択してください</h2>
+            <div class="space-y-2.5 text-base">
+                <button id="btn-paste-normal" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3 px-3 rounded-lg text-left transition-colors">
+                    <div>等倍配置</div>
+                    <div class="text-xs text-slate-400 font-semibold mt-0.5">余白を保持して配置します</div>
+                </button>
+                <button id="btn-paste-stretch" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3 px-3 rounded-lg text-left transition-colors">
+                    <div>ストレッチ配置</div>
+                    <div class="text-xs text-slate-400 font-semibold mt-0.5">用紙サイズに合わせて引き延ばします</div>
+                </button>
+                <button id="btn-paste-cover" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3 px-3 rounded-lg text-left transition-colors">
+                    <div>全体配置 (Cover)</div>
+                    <div class="text-xs text-slate-400 font-semibold mt-0.5">画面全体を満たすように配置します</div>
+                </button>
+            </div>
+            <div class="pt-2 flex justify-end">
+                <button id="btn-close-paste" class="bg-slate-200 hover:bg-slate-300 font-bold py-2 px-5 rounded-lg shadow-sm transition-all text-sm">戻る</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 書き出しモーダル -->
+    <div id="done-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4 transform transition-all text-slate-700">
+            <h2 class="text-lg font-bold border-b border-slate-100 pb-3">画像出力・保存</h2>
+            <div class="space-y-3 text-base">
+                <button id="btn-export-bg" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3.5 px-4 rounded-lg shadow-sm text-left transition-colors">描画と背景と画用紙を合成して保存</button>
+                <button id="btn-export-paper" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3.5 px-4 rounded-lg shadow-sm text-left transition-colors">描画と画用紙を合成して保存</button>
+                <button id="btn-export-transparent" class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold py-3.5 px-4 rounded-lg shadow-sm text-left transition-colors">描画のみ保存（透過性PNG）</button>
+            </div>
+            <div class="pt-2 flex justify-end border-t border-slate-100 mt-3">
+                <button id="btn-close-done" class="bg-slate-200 hover:bg-slate-300 font-bold py-2 px-6 rounded-lg shadow-sm transition-all text-sm">戻る</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 離脱アラート ---
+        window.addEventListener('beforeunload', function (e) {
+            const msg = "「EMPITSU」を終了します。\n保存は大丈夫ですか？";
+            e.preventDefault();
+            e.returnValue = msg;
+            return msg;
+        });
+
+        class PaperToothMap {
+            constructor() {
+                this.size = 256;
+                this.data = new Float32Array(this.size * this.size);
+                this.generatePaperGrain();
+            }
+            generatePaperGrain() {
+                let ptr = 0;
+                for (let y = 0; y < this.size; y++) {
+                    for (let x = 0; x < this.size; x++) {
+                        let n1 = Math.sin(x * 0.18) * Math.cos(y * 0.18) * 0.25;
+                        let n2 = Math.sin(x * 0.45 + y * 0.35) * 0.15;
+                        let pseudoRandom = (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1;
+                        let val = 0.3 + n1 + n2 + Math.abs(pseudoRandom) * 0.55;
+                        this.data[ptr++] = Math.max(0, Math.min(1, val));
+                    }
+                }
+            }
+            isValley(x, y, valleyThreshold = 0.30) {
+                let ix = Math.floor(x) & 255;
+                let iy = Math.floor(y) & 255;
+                return this.data[(iy << 8) | ix] < valleyThreshold;
+            }
+            getPeakValue(x, y) {
+                let ix = Math.floor(x) & 255;
+                let iy = Math.floor(y) & 255;
+                return this.data[(iy << 8) | ix];
+            }
+        }
+
+        class HistoryManager {
+            constructor(app) {
+                this.app = app;
+                this.undoStack = [];
+                this.redoStack = [];
+                this.maxUndo = 50;
+            }
+            saveState() {
+                const state = {
+                    drawing: this.app.canvasCore.ctx.getImageData(0, 0, this.app.canvasCore.width, this.app.canvasCore.height),
+                    rotation: this.app.canvasCore.transform.rotation,
+                    bg: {
+                        src: this.app.bgManager.currentImage ? this.app.bgManager.currentImage.src : null,
+                        mode: this.app.bgManager.currentMode,
+                        opacity: document.getElementById('slider-bg-opacity').value
+                    },
+                    sample: {
+                        hasImage: this.app.sampleManager.hasImage,
+                        src: this.app.sampleManager.imageEl.src,
+                        style: {
+                            left: this.app.sampleManager.container.style.left,
+                            top: this.app.sampleManager.container.style.top,
+                            width: this.app.sampleManager.container.style.width,
+                            height: this.app.sampleManager.container.style.height,
+                            display: this.app.sampleManager.container.style.display
+                        }
+                    }
+                };
+                if (this.undoStack.length >= this.maxUndo) this.undoStack.shift();
+                this.undoStack.push(state);
+                this.redoStack = [];
+            }
+            undo() {
+                if (this.undoStack.length > 1) {
+                    const current = this.undoStack.pop();
+                    this.redoStack.push(current);
+                    this.restoreState(this.undoStack[this.undoStack.length - 1]);
+                }
+            }
+            redo() {
+                if (this.redoStack.length > 0) {
+                    const next = this.redoStack.pop();
+                    this.undoStack.push(next);
+                    this.restoreState(next);
+                }
+            }
+            restoreState(state) {
+                this.app.canvasCore.ctx.putImageData(state.drawing, 0, 0);
+                this.app.canvasCore.transform.rotation = state.rotation;
+                this.app.canvasCore.applyTransform();
+                
+                document.getElementById('slider-bg-opacity').value = state.bg.opacity;
+                if (state.bg.src) {
+                    const img = new Image();
+                    img.onload = () => {
+                        this.app.bgManager.currentImage = img;
+                        this.app.bgManager.currentMode = state.bg.mode;
+                        this.app.bgManager.render();
+                    };
+                    img.src = state.bg.src;
+                } else {
+                    this.app.bgManager.currentImage = null;
+                    this.app.bgManager.render();
+                }
+
+                this.app.sampleManager.hasImage = state.sample.hasImage;
+                if (state.sample.hasImage) {
+                    this.app.sampleManager.imageEl.src = state.sample.src;
+                    Object.assign(this.app.sampleManager.container.style, state.sample.style);
+                } else {
+                    this.app.sampleManager.container.style.display = 'none';
+                    this.app.sampleManager.imageEl.src = '';
+                }
+            }
+            reset() {
+                const currentState = this.undoStack.length > 0 ? this.undoStack[this.undoStack.length - 1] : null;
+                this.undoStack = [];
+                this.redoStack = [];
+                if (currentState) {
+                    this.undoStack.push(currentState);
+                } else {
+                    this.saveState();
+                }
+            }
+        }
+
+        class FileSystemManager {
+            constructor(app) {
+                this.app = app;
+                this.canvasCore = app.canvasCore;
+                this.dbName = 'EmpitsuDB';
+                this.storeName = 'handles';
+                this.settingsStoreName = 'settings';
+                this.initDB();
+                this.initFileInput();
+            }
+            async initDB() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, 2);
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains(this.storeName)) db.createObjectStore(this.storeName);
+                        if (!db.objectStoreNames.contains(this.settingsStoreName)) db.createObjectStore(this.settingsStoreName);
+                    };
+                    request.onsuccess = async (e) => {
+                        this.db = e.target.result;
+                        resolve();
+                    };
+                    request.onerror = (e) => reject(e);
+                });
+            }
+            initFileInput() {
+                const fileInput = document.getElementById('file-input-emp');
+                fileInput.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        try {
+                            const data = JSON.parse(event.target.result);
+                            this.restoreData(data);
+                        } catch (err) {
+                            alert("ファイルの読み込みに失敗しました。正しいEMPITSUデータを選択してください。");
+                        }
+                    };
+                    reader.readAsText(file);
+                    fileInput.value = '';
+                };
+            }
+            async saveSettings(settingsObj) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(this.settingsStoreName, 'readwrite');
+                    const store = tx.objectStore(this.settingsStoreName);
+                    store.put(settingsObj, 'userSettings');
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e);
+                });
+            }
+            async loadSettings() {
+                return new Promise((resolve, reject) => {
+                    if (!this.db) { resolve(null); return; }
+                    const tx = this.db.transaction(this.settingsStoreName, 'readonly');
+                    const store = tx.objectStore(this.settingsStoreName);
+                    const request = store.get('userSettings');
+                    request.onsuccess = (e) => resolve(e.target.result);
+                    request.onerror = (e) => reject(e);
+                });
+            }
+
+            async saveAsFile() {
+                try {
+                    const filename = this.getDailySequenceFilename();
+                    const stgData = {
+                        createdAt: new Date().toISOString(),
+                        drawing: this.canvasCore.canvas.toDataURL('image/png'),
+                        rotation: this.canvasCore.transform.rotation,
+                        bg: {
+                            src: this.app.bgManager.currentImage ? this.app.bgManager.currentImage.src : null,
+                            mode: this.app.bgManager.currentMode,
+                            opacity: document.getElementById('slider-bg-opacity').value
+                        },
+                        sample: {
+                            hasImage: this.app.sampleManager.hasImage,
+                            src: this.app.sampleManager.imageEl.src,
+                            style: {
+                                left: this.app.sampleManager.container.style.left,
+                                top: this.app.sampleManager.container.style.top,
+                                width: this.app.sampleManager.container.style.width,
+                                height: this.app.sampleManager.container.style.height,
+                                display: this.app.sampleManager.container.style.display
+                            }
+                        }
+                    };
+                    const jsonStr = JSON.stringify(stgData);
+                    const blob = new Blob([jsonStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    alert("ダウンロードフォルダに保存しました。");
+                    this.app.historyManager.reset();
+                } catch (e) {
+                    console.error("保存エラー", e);
+                    alert("保存中にエラーが発生しました。");
+                }
+            }
+
+            loadFile() {
+                document.getElementById('file-input-emp').click();
+            }
+
+            restoreData(data) {
+                if (data.rotation !== undefined) {
+                    this.app.canvasCore.transform.rotation = data.rotation || 0;
+                    this.app.canvasCore.applyTransform();
+                }
+                if (data.bg && data.bg.src) {
+                    document.getElementById('slider-bg-opacity').value = data.bg.opacity;
+                    const img = new Image();
+                    img.onload = () => {
+                        this.app.bgManager.currentImage = img;
+                        this.app.bgManager.currentMode = data.bg.mode;
+                        this.app.bgManager.render();
+                        this.app.historyManager.saveState();
+                    };
+                    img.src = data.bg.src;
+                } else {
+                    this.app.bgManager.currentImage = null;
+                    this.app.bgManager.render();
+                }
+                
+                if (data.sample && data.sample.hasImage) {
+                    this.app.sampleManager.hasImage = true;
+                    this.app.sampleManager.imageEl.src = data.sample.src;
+                    Object.assign(this.app.sampleManager.container.style, data.sample.style);
+                } else {
+                    this.app.sampleManager.hasImage = false;
+                    this.app.sampleManager.container.style.display = 'none';
+                }
+                
+                if (data.drawing) {
+                    const img = new Image();
+                    img.onload = () => {
+                        this.app.canvasCore.clearCanvas();
+                        this.app.canvasCore.ctx.drawImage(img, 0, 0);
+                        this.app.historyManager.saveState();
+                    };
+                    img.src = data.drawing;
+                }
+            }
+            getDailySequenceFilename() {
+                const d = new Date();
+                const pad = (n) => n.toString().padStart(2, '0');
+                const dateStr = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+                let lastDate = localStorage.getItem('empitsu_last_date');
+                let seq = parseInt(localStorage.getItem('empitsu_seq') || '0', 10);
+                if (lastDate !== dateStr) { seq = 1; localStorage.setItem('empitsu_last_date', dateStr); } 
+                else { seq += 1; }
+                localStorage.setItem('empitsu_seq', seq.toString());
+                return `empitsu_${dateStr}_${seq.toString().padStart(3, '0')}.emp`;
+            }
+        }
+
+        class BackgroundManager {
+            constructor(app) {
+                this.app = app;
+                this.canvasCore = app.canvasCore;
+                this.bgCanvas = document.getElementById('bg-canvas');
+                this.bgCtx = this.bgCanvas.getContext('2d', { willReadFrequently: true });
+                this.currentImage = null;
+                this.tempImage = null;
+                this.currentMode = 'normal';
+                this.initEvents();
+                this.initFileInput();
+            }
+
+            initFileInput() {
+                const bgInput = document.getElementById('file-input-bg');
+                bgInput.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    this.loadImageFromBlob(file);
+                    bgInput.value = '';
+                };
+            }
+
+            initEvents() {
+                const bgModal = document.getElementById('bg-modal');
+                const pasteModal = document.getElementById('paste-modal');
+
+                document.getElementById('btn-bg').onclick = () => bgModal.classList.remove('hidden');
+                document.getElementById('btn-close-bg').onclick = () => bgModal.classList.add('hidden');
+                document.getElementById('btn-close-paste').onclick = () => {
+                    pasteModal.classList.add('hidden');
+                    if (this.currentModalCaller === 'sample') {
+                        document.getElementById('sample-modal').classList.remove('hidden');
+                    } else {
+                        bgModal.classList.remove('hidden');
+                    }
+                };
+
+                document.getElementById('btn-bg-paste').onclick = () => { this.currentModalCaller = 'bg'; this.handleClipboardBtn(); };
+                document.getElementById('btn-bg-file').onclick = () => { this.currentModalCaller = 'bg'; this.handleFileBtn(); };
+                document.getElementById('btn-bg-clear').onclick = () => this.clearBg();
+
+                document.getElementById('btn-paste-normal').onclick = () => this.applyPaste('normal');
+                document.getElementById('btn-paste-stretch').onclick = () => this.applyPaste('stretch');
+                document.getElementById('btn-paste-cover').onclick = () => this.applyPaste('cover');
+
+                document.getElementById('slider-bg-opacity').addEventListener('change', () => {
+                    this.render();
+                    this.app.historyManager.saveState();
+                });
+                document.getElementById('slider-bg-opacity').addEventListener('input', () => this.render());
+
+                window.addEventListener('paste', (e) => {
+                    if (!e.clipboardData) return;
+                    const items = e.clipboardData.items;
+                    for (let i = 0; i < items.length; i++) {
+                        if (items[i].type.indexOf('image') !== -1) {
+                            const blob = items[i].getAsFile();
+                            if (!document.getElementById('sample-modal').classList.contains('hidden')) {
+                                this.app.sampleManager.loadImageFromBlob(blob);
+                            } else {
+                                this.currentModalCaller = 'bg';
+                                this.loadImageFromBlob(blob);
+                            }
+                            break;
+                        }
+                    }
+                });
+            }
+
+            async handleClipboardBtn() {
+                try {
+                    const clipboardItems = await navigator.clipboard.read();
+                    for (const clipboardItem of clipboardItems) {
+                        const imageTypes = clipboardItem.types.filter(type => type.startsWith('image/'));
+                        if (imageTypes.length > 0) {
+                            const blob = await clipboardItem.getType(imageTypes[0]);
+                            this.loadImageFromBlob(blob);
+                            return;
+                        }
+                    }
+                    alert("クリップボードに画像がありません。");
+                } catch (err) {
+                    console.error(err);
+                    alert("クリップボードから読み込めませんでした。Ctrl+V を試してください。");
+                }
+            }
+
+            handleFileBtn() {
+                document.getElementById('file-input-bg').click();
+            }
+
+            loadImageFromBlob(blob) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const dataUrl = e.target.result;
+                    const img = new Image();
+                    img.onload = () => {
+                        this.tempImage = img;
+                        document.getElementById('bg-modal').classList.add('hidden');
+                        document.getElementById('sample-modal').classList.add('hidden');
+                        document.getElementById('paste-modal').classList.remove('hidden');
+                    };
+                    img.src = dataUrl;
+                };
+                reader.readAsDataURL(blob);
+            }
+
+            applyPaste(mode) {
+                this.currentMode = mode;
+                this.currentImage = this.tempImage;
+                this.render();
+                this.app.historyManager.saveState();
+                document.getElementById('paste-modal').classList.add('hidden');
+            }
+
+            clearBg() {
+                if (!this.currentImage) {
+                    alert("背景画像が設定されていません。");
+                    return;
+                }
+                if (confirm("背景画像を削除しますか？")) {
+                    this.currentImage = null;
+                    this.render();
+                    this.app.historyManager.saveState();
+                }
+            }
+
+            render() {
+                this.bgCtx.clearRect(0, 0, this.bgCanvas.width, this.bgCanvas.height);
+                if (!this.currentImage) return;
+
+                const alpha = parseInt(document.getElementById('slider-bg-opacity').value) / 10;
+                this.bgCtx.globalAlpha = alpha;
+
+                const rotation = this.canvasCore.transform.rotation % 360;
+                const rad = -rotation * Math.PI / 180;
+
+                this.bgCtx.save();
+                this.bgCtx.translate(this.bgCanvas.width / 2, this.bgCanvas.height / 2);
+                this.bgCtx.rotate(rad);
+
+                let paperW = this.bgCanvas.width;
+                let paperH = this.bgCanvas.height;
+                if (Math.abs(rotation) === 90 || Math.abs(rotation) === 270) {
+                    paperW = this.bgCanvas.height;
+                    paperH = this.bgCanvas.width;
+                }
+
+                const imgW = this.currentImage.width;
+                const imgH = this.currentImage.height;
+
+                let scaleX = 1, scaleY = 1;
+                if (this.currentMode === 'normal') {
+                    const scale = Math.min(paperW / imgW, paperH / imgH);
+                    scaleX = scale; scaleY = scale;
+                } else if (this.currentMode === 'stretch') {
+                    scaleX = paperW / imgW;
+                    scaleY = paperH / imgH;
+                } else if (this.currentMode === 'cover') {
+                    const scale = Math.max(paperW / imgW, paperH / imgH);
+                    scaleX = scale; scaleY = scale;
+                }
+
+                const drawW = imgW * scaleX;
+                const drawH = imgH * scaleY;
+
+                this.bgCtx.drawImage(this.currentImage, -drawW / 2, -drawH / 2, drawW, drawH);
+                this.bgCtx.restore();
+                this.bgCtx.globalAlpha = 1.0;
+            }
+        }
+
+        class SampleManager {
+            constructor(app) {
+                this.app = app;
+                this.container = document.getElementById('sample-container');
+                this.imageEl = document.getElementById('sample-image');
+                this.isFocused = false;
+                this.hasImage = false;
+                
+                this.action = null; 
+                this.startPos = { x: 0, y: 0 };
+                this.startRect = { left: 0, top: 0, width: 0, height: 0 };
+
+                this.initEvents();
+                this.initInteraction();
+                this.initFileInput();
+            }
+
+            initFileInput() {
+                const sampleInput = document.getElementById('file-input-sample');
+                sampleInput.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    this.loadImageFromBlob(file);
+                    sampleInput.value = '';
+                };
+            }
+
+            initEvents() {
+                const sampleModal = document.getElementById('sample-modal');
+                document.getElementById('btn-sample').onclick = () => sampleModal.classList.remove('hidden');
+                document.getElementById('btn-close-sample').onclick = () => sampleModal.classList.add('hidden');
+
+                document.getElementById('btn-sample-paste').onclick = () => this.handleClipboardBtn();
+                document.getElementById('btn-sample-file').onclick = () => this.handleFileBtn();
+                document.getElementById('btn-sample-clear').onclick = () => this.clearSample();
+                
+                document.getElementById('canvas-container').addEventListener('pointerdown', (e) => {
+                    if (e.target !== this.container && !this.container.contains(e.target) && this.isFocused) {
+                        this.setFocus(false);
+                    }
+                });
+            }
+
+            setFocus(focused) {
+                this.isFocused = focused;
+                if (focused) {
+                    this.container.classList.add('sample-focused');
+                } else {
+                    this.container.classList.remove('sample-focused');
+                }
+            }
+
+            async handleClipboardBtn() {
+                try {
+                    const clipboardItems = await navigator.clipboard.read();
+                    for (const clipboardItem of clipboardItems) {
+                        const imageTypes = clipboardItem.types.filter(type => type.startsWith('image/'));
+                        if (imageTypes.length > 0) {
+                            const blob = await clipboardItem.getType(imageTypes[0]);
+                            this.loadImageFromBlob(blob);
+                            return;
+                        }
+                    }
+                    alert("クリップボードに画像がありません。");
+                } catch (err) {
+                    console.error(err);
+                    alert("クリップボードから読み込めませんでした。");
+                }
+            }
+
+            handleFileBtn() {
+                document.getElementById('file-input-sample').click();
+            }
+
+            loadImageFromBlob(blob) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const dataUrl = e.target.result;
+                    const img = new Image();
+                    img.onload = () => {
+                        document.getElementById('sample-modal').classList.add('hidden');
+                        this.setupImage(img, dataUrl);
+                    };
+                    img.src = dataUrl;
+                };
+                reader.readAsDataURL(blob);
+            }
+            
+            setupImage(img, url) {
+                this.hasImage = true;
+                this.imageEl.src = url;
+                
+                const maxSide = 480;
+                let w = img.width;
+                let h = img.height;
+                if (w > h) {
+                    h = (h / w) * maxSide;
+                    w = maxSide;
+                } else {
+                    w = (w / h) * maxSide;
+                    h = maxSide;
+                }
+                
+                const parentRect = this.container.parentElement.getBoundingClientRect();
+                const centerX = parentRect.width / 2;
+                const centerY = parentRect.height / 2;
+                
+                this.container.style.width = `${w}px`;
+                this.container.style.height = `${h}px`;
+                this.container.style.left = `${centerX - w / 2}px`;
+                this.container.style.top = `${centerY - h / 2}px`;
+                this.container.style.display = 'block';
+                
+                this.setFocus(true);
+                this.app.historyManager.saveState();
+            }
+
+            clearSample() {
+                if (!this.hasImage) {
+                    alert("手本画像が設定されていません。");
+                    return;
+                }
+                if (confirm("手本画像を削除しますか？")) {
+                    this.hasImage = false;
+                    this.container.style.display = 'none';
+                    this.imageEl.src = '';
+                    document.getElementById('sample-modal').classList.add('hidden');
+                    this.app.historyManager.saveState();
+                }
+            }
+
+            initInteraction() {
+                this.container.addEventListener('pointerdown', (e) => {
+                    if (!this.hasImage) return;
+                    e.stopPropagation(); 
+                    
+                    if (!this.isFocused) {
+                        this.setFocus(true);
+                        return;
+                    }
+                    
+                    if (e.target.classList.contains('resize-handle')) return;
+                    
+                    this.action = 'move';
+                    this.startPos = { x: e.clientX, y: e.clientY };
+                    const rect = this.container.getBoundingClientRect();
+                    const parentRect = this.container.parentElement.getBoundingClientRect();
+                    this.startRect = { left: rect.left - parentRect.left, top: rect.top - parentRect.top };
+                    
+                    this.container.setPointerCapture(e.pointerId);
+                });
+
+                const handles = this.container.querySelectorAll('.resize-handle');
+                handles.forEach(handle => {
+                    handle.addEventListener('pointerdown', (e) => {
+                        e.stopPropagation();
+                        this.action = `resize-${e.target.dataset.dir}`;
+                        this.startPos = { x: e.clientX, y: e.clientY };
+                        
+                        const rect = this.container.getBoundingClientRect();
+                        const parentRect = this.container.parentElement.getBoundingClientRect();
+                        this.startRect = { 
+                            left: rect.left - parentRect.left, 
+                            top: rect.top - parentRect.top,
+                            width: rect.width,
+                            height: rect.height,
+                            ratio: rect.width / rect.height
+                        };
+                        
+                        this.container.setPointerCapture(e.pointerId);
+                    });
+                });
+
+                this.container.addEventListener('pointermove', (e) => {
+                    if (!this.action) return;
+                    e.stopPropagation();
+                    
+                    const dx = e.clientX - this.startPos.x;
+                    const dy = e.clientY - this.startPos.y;
+
+                    if (this.action === 'move') {
+                        this.container.style.left = `${this.startRect.left + dx}px`;
+                        this.container.style.top = `${this.startRect.top + dy}px`;
+                    } else if (this.action.startsWith('resize-')) {
+                        const dir = this.action.split('-')[1];
+                        let newW = this.startRect.width;
+                        let newH = this.startRect.height;
+                        let newL = this.startRect.left;
+                        let newT = this.startRect.top;
+                        
+                        const ratio = this.startRect.ratio;
+                        
+                        if (dir === 'br') {
+                            newW = Math.max(50, this.startRect.width + dx);
+                            newH = newW / ratio;
+                        } else if (dir === 'bl') {
+                            newW = Math.max(50, this.startRect.width - dx);
+                            newH = newW / ratio;
+                            newL = this.startRect.left + (this.startRect.width - newW);
+                        } else if (dir === 'tr') {
+                            newW = Math.max(50, this.startRect.width + dx);
+                            newH = newW / ratio;
+                            newT = this.startRect.top + (this.startRect.height - newH);
+                        } else if (dir === 'tl') {
+                            newW = Math.max(50, this.startRect.width - dx);
+                            newH = newW / ratio;
+                            newL = this.startRect.left + (this.startRect.width - newW);
+                            newT = this.startRect.top + (this.startRect.height - newH);
+                        }
+
+                        this.container.style.width = `${newW}px`;
+                        this.container.style.height = `${newH}px`;
+                        this.container.style.left = `${newL}px`;
+                        this.container.style.top = `${newT}px`;
+                    }
+                });
+
+                this.container.addEventListener('pointerup', (e) => {
+                    if (this.action) {
+                        e.stopPropagation();
+                        this.action = null;
+                        this.container.releasePointerCapture(e.pointerId);
+                        this.app.historyManager.saveState();
+                    }
+                });
+                this.container.addEventListener('pointercancel', (e) => {
+                    if (this.action) {
+                        this.action = null;
+                        this.container.releasePointerCapture(e.pointerId);
+                    }
+                });
+            }
+        }
+
+        class SpeedPencil {
+            constructor(canvasCore) {
+                this.canvasCore = canvasCore;
+                this.ctx = canvasCore.ctx;
+                this.paperTooth = new PaperToothMap();
+                
+                this.tool = 'pencil';
+                this.posture = 'tateru';
+                this.color = '#334155';
+                
+                this.pencilOpacityScale = 0.15;
+                this.pencilThickness = 4.0;
+                this.handedness = 'right';
+
+                this.lastPoint = null;
+                this.lastTime = 0;
+            }
+            setTool(toolName, colorHex) { this.tool = toolName; if (colorHex) this.color = colorHex; }
+            setPosture(postureName) { this.posture = postureName; }
+            setPencilOpacityScale(scale) { this.pencilOpacityScale = scale; }
+            setPencilThickness(thick) { this.pencilThickness = thick; }
+            setHandedness(hand) { this.handedness = hand; }
+
+            hexToRgb(hex) {
+                let r = 0, g = 0, b = 0;
+                if (hex.startsWith('#')) hex = hex.substring(1);
+                if (hex.length === 6) { r = parseInt(hex.substring(0, 2), 16); g = parseInt(hex.substring(2, 4), 16); b = parseInt(hex.substring(4, 6), 16); }
+                return {r, g, b};
+            }
+
+            start(point) {
+                this.lastPoint = point;
+                this.lastTime = performance.now();
+                if (this.tool === 'eraser') {
+                    this.drawEraserPoint(point.x, point.y);
+                } else {
+                    this.drawPencilGrainPoint(point.x, point.y, 0);
+                }
+            }
+
+            draw(point) {
+                if (!this.lastPoint) return;
+                const now = performance.now();
+                const dt = Math.max(1, now - this.lastTime);
+                const dx = point.x - this.lastPoint.x;
+                const dy = point.y - this.lastPoint.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const speed = dist / dt;
+
+                if (this.tool === 'eraser') {
+                    const step = 30 / 4; 
+                    const steps = Math.max(1, Math.floor(dist / step));
+                    for (let i = 1; i <= steps; i++) {
+                        const t = i / steps;
+                        this.drawEraserPoint(this.lastPoint.x + dx * t, this.lastPoint.y + dy * t);
+                    }
+                } else {
+                    const stepDist = (this.posture === 'tateru') ? (this.pencilThickness * 0.25) : 2.0;
+                    const steps = Math.max(1, Math.floor(dist / Math.max(0.5, stepDist)));
+                    for (let i = 1; i <= steps; i++) {
+                        const t = i / steps;
+                        this.drawPencilGrainPoint(this.lastPoint.x + dx * t, this.lastPoint.y + dy * t, speed);
+                    }
+                }
+                this.lastPoint = point;
+                this.lastTime = now;
+            }
+
+            drawEraserPoint(cx, cy) {
+                const radius = 30;
+                this.ctx.save();
+                this.ctx.globalCompositeOperation = 'destination-out';
+                this.ctx.globalAlpha = 0.3;
+                
+                const grad = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+                grad.addColorStop(0, 'rgba(0, 0, 0, 1)');
+                grad.addColorStop(0.5, 'rgba(0, 0, 0, 0.8)');
+                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                this.ctx.fillStyle = grad;
+                this.ctx.beginPath();
+                this.ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.restore();
+            }
+
+            drawParticle(px, py, rgb, particleAlpha) {
+                const hexColor = this.color.toLowerCase();
+                const isGold = (hexColor === '#c5a059');
+                const isSilver = (hexColor === '#a8b0b8');
+                
+                if (isGold || isSilver) {
+                    if (Math.random() < 0.25) {
+                        const sparkleAlpha = 0.3 + Math.random() * 0.6;
+                        let sr, sg, sb;
+                        const mix = Math.random();
+                        if (isGold) { sr = 255; sg = 245 + Math.floor(10 * mix); sb = 192 + Math.floor(63 * mix); } 
+                        else { sr = 230 + Math.floor(25 * mix); sg = 236 + Math.floor(19 * mix); sb = 239 + Math.floor(16 * mix); }
+                        this.ctx.fillStyle = `rgba(${sr}, ${sg}, ${sb}, ${sparkleAlpha.toFixed(3)})`;
+                        this.ctx.fillRect(px, py, 1.0, 1.0);
+                        return;
+                    }
+                }
+                this.ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${particleAlpha.toFixed(3)})`;
+                this.ctx.fillRect(px, py, 1.2, 1.2);
+            }
+
+            drawPencilGrainPoint(cx, cy, speed) {
+                const rgb = this.hexToRgb(this.color);
+                const normalizedSpeed = Math.min(speed / 4.0, 1.0);
+                const baseAlpha = this.pencilOpacityScale * (1.1 - 0.25 * normalizedSpeed);
+
+                if (this.posture === 'tateru') {
+                    const radius = this.pencilThickness / 2.0;
+                    const numParticles = Math.floor(12 * (this.pencilThickness / 4.0));
+                    for (let p = 0; p < numParticles; p++) {
+                        const r = Math.sqrt(Math.random()) * radius;
+                        const angle = Math.random() * Math.PI * 2;
+                        const px = Math.round(cx + r * Math.cos(angle));
+                        const py = Math.round(cy + r * Math.sin(angle));
+                        if (this.paperTooth.isValley(px, py, 0.28)) continue; 
+                        const peakVal = this.paperTooth.getPeakValue(px, py);
+                        this.drawParticle(px, py, rgb, Math.min(1.0, baseAlpha * (0.6 + 0.8 * peakVal)));
+                    }
+                } else {
+                    const tipLength = 25.0;
+                    const tipWidth = this.pencilThickness;
+                    const numParticles = Math.floor(32 * (this.pencilThickness / 4.0));
+
+                    this.ctx.save();
+                    this.ctx.translate(cx, cy);
+                    const baseRotation = (this.handedness === 'left') ? -Math.PI / 4 : Math.PI / 4;
+                    const paperRotationRad = (this.canvasCore.transform.rotation || 0) * (Math.PI / 180);
+                    const rotationAngle = baseRotation - paperRotationRad;
+                    this.ctx.rotate(rotationAngle);
+
+                    for (let p = 0; p < numParticles; p++) {
+                        const rx = (Math.random() - 0.5) * tipLength;
+                        const ry = (Math.random() - 0.5) * tipWidth;
+                        const cos = Math.cos(rotationAngle);
+                        const sin = Math.sin(rotationAngle);
+                        const absX = Math.round(cx + (rx * cos - ry * sin));
+                        const absY = Math.round(cy + (rx * sin + ry * cos));
+                        if (this.paperTooth.isValley(absX, absY, 0.32)) continue;
+                        const peakVal = this.paperTooth.getPeakValue(absX, absY);
+                        this.drawParticle(rx, ry, rgb, Math.min(1.0, baseAlpha * (0.5 + 0.7 * peakVal)));
+                    }
+                    this.ctx.restore();
+                }
+            }
+            end() { this.lastPoint = null; }
+        }
+
+        class CanvasCore {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.container = document.getElementById('canvas-wrapper');
+                this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+                
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                
+                this.isDrawing = false;
+                this.drawStartTime = 0;
+                
+                this.pointers = new Map();
+                this.transform = { x: 0, y: 0, scale: 1, rotation: 0 };
+                this.initScale();
+                
+                this.lastPinchDistance = null;
+                this.lastPinchCenter = null;
+                this.isMousePanning = false;
+                this.lastMousePan = null;
+                
+                this.onPointerDown = null;
+                this.onPointerMove = null;
+                this.onPointerUp = null;
+                this.onPointerCancel = null;
+                this.onPointerHover = null;
+                this.onPointerOut = null;
+
+                this.initEvents();
+                this.clearCanvas();
+                this.applyTransform();
+            }
+
+            initScale() {
+                const containerRect = this.container.parentElement.getBoundingClientRect();
+                if (containerRect.width > 0 && containerRect.height > 0) {
+                    const scaleX = containerRect.width / this.width;
+                    const scaleY = containerRect.height / this.height;
+                    this.transform.scale = Math.min(scaleX, scaleY) * 0.95;
+                }
+            }
+
+            clearCanvas() {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+            }
+            
+            rotatePaper() {
+                this.transform.rotation = (this.transform.rotation + 90) % 360;
+                this.applyTransform();
+            }
+
+            applyTransform() {
+                const transformStr = `translate3d(${this.transform.x}px, ${this.transform.y}px, 0) scale(${this.transform.scale}) rotate(${this.transform.rotation}deg)`;
+                this.container.style.transform = transformStr;
+            }
+
+            initEvents() {
+                const eventTarget = this.canvas.parentElement.parentElement;
+                eventTarget.addEventListener('contextmenu', e => e.preventDefault());
+                eventTarget.addEventListener('pointerdown', this.handlePointerDown.bind(this));
+                window.addEventListener('pointermove', this.handlePointerMove.bind(this));
+                window.addEventListener('pointerup', this.handlePointerUp.bind(this));
+                window.addEventListener('pointercancel', this.handlePointerUp.bind(this));
+
+                eventTarget.addEventListener('pointerleave', (e) => {
+                    if (this.onPointerOut) this.onPointerOut(e);
+                });
+
+                eventTarget.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const rect = this.canvas.getBoundingClientRect();
+                    const cx = rect.left + rect.width / 2;
+                    const cy = rect.top + rect.height / 2;
+                    const vx = e.clientX - cx;
+                    const vy = e.clientY - cy;
+                    let newScale = Math.max(0.3, Math.min(this.transform.scale * (1 - e.deltaY * 0.0015), 5.0));
+                    const actualRatio = newScale / this.transform.scale;
+                    this.transform.x += vx * (1 - actualRatio);
+                    this.transform.y += vy * (1 - actualRatio);
+                    this.transform.scale = newScale;
+                    this.applyTransform();
+                }, { passive: false });
+            }
+
+            getCanvasPoint(e) {
+                const containerRect = this.canvas.parentElement.parentElement.getBoundingClientRect();
+                const cx = containerRect.left + containerRect.width / 2;
+                const cy = containerRect.top + containerRect.height / 2;
+                const cssWidth = this.container.offsetWidth;
+                const cssHeight = this.container.offsetHeight;
+                
+                const canvasScreenCX = cx + this.transform.x;
+                const canvasScreenCY = cy + this.transform.y;
+                const dx = e.clientX - canvasScreenCX;
+                const dy = e.clientY - canvasScreenCY;
+                const unscaledX = dx / this.transform.scale;
+                const unscaledY = dy / this.transform.scale;
+                
+                const rad = -this.transform.rotation * Math.PI / 180;
+                const cos = Math.cos(rad);
+                const sin = Math.sin(rad);
+                const unrotatedX = unscaledX * cos - unscaledY * sin;
+                const unrotatedY = unscaledX * sin + unscaledY * cos;
+                
+                const ratioX = this.width / cssWidth;
+                const ratioY = this.height / cssHeight;
+                return { x: (unrotatedX + cssWidth / 2) * ratioX, y: (unrotatedY + cssHeight / 2) * ratioY, pointerType: e.pointerType, pressure: e.pressure };
+            }
+
+            handlePointerDown(e) {
+                if (e.pointerType === 'mouse' && e.button === 1) {
+                    this.isMousePanning = true;
+                    this.lastMousePan = { x: e.clientX, y: e.clientY };
+                    return;
+                }
+                if (e.button !== 0 && e.pointerType === 'mouse') return;
+                this.pointers.set(e.pointerId, e);
+
+                if (this.pointers.size === 2) {
+                    if (this.isDrawing) {
+                        this.isDrawing = false;
+                        if (this.onPointerCancel) this.onPointerCancel();
+                    }
+                    const pts = Array.from(this.pointers.values());
+                    this.lastPinchDistance = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+                    this.lastPinchCenter = { x: (pts[0].clientX + pts[1].clientX) / 2, y: (pts[0].clientY + pts[1].clientY) / 2 };
+                    return;
+                }
+
+                if (this.pointers.size === 1) {
+                    this.isDrawing = true;
+                    this.drawStartTime = performance.now();
+                    e.target.setPointerCapture(e.pointerId);
+                    const point = this.getCanvasPoint(e);
+                    if (this.onPointerDown) this.onPointerDown(point, e);
+                }
+            }
+
+            handlePointerMove(e) {
+                if (this.isMousePanning) {
+                    const dx = e.clientX - this.lastMousePan.x;
+                    const dy = e.clientY - this.lastMousePan.y;
+                    this.transform.x += dx;
+                    this.transform.y += dy;
+                    this.lastMousePan = { x: e.clientX, y: e.clientY };
+                    this.applyTransform();
+                    return;
+                }
+                
+                if (!this.pointers.has(e.pointerId)) {
+                    if (this.onPointerHover && !this.isMousePanning) {
+                        this.onPointerHover(this.getCanvasPoint(e), e);
+                    }
+                    return;
+                }
+
+                this.pointers.set(e.pointerId, e);
+
+                if (this.pointers.size === 2) {
+                    const pts = Array.from(this.pointers.values());
+                    const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+                    const center = { x: (pts[0].clientX + pts[1].clientX) / 2, y: (pts[0].clientY + pts[1].clientY) / 2 };
+
+                    if (this.lastPinchDistance && this.lastPinchCenter) {
+                        let newScale = Math.max(0.3, Math.min(this.transform.scale * (dist / this.lastPinchDistance), 5.0));
+                        const actualRatio = newScale / this.transform.scale;
+                        const rect = this.canvas.getBoundingClientRect();
+                        const cx = rect.left + rect.width / 2;
+                        const cy = rect.top + rect.height / 2;
+                        const vx = center.x - cx;
+                        const vy = center.y - cy;
+
+                        this.transform.x += vx * (1 - actualRatio) + (center.x - this.lastPinchCenter.x);
+                        this.transform.y += vy * (1 - actualRatio) + (center.y - this.lastPinchCenter.y);
+                        this.transform.scale = newScale;
+                        this.applyTransform();
+                    }
+                    this.lastPinchDistance = dist;
+                    this.lastPinchCenter = center;
+                    return;
+                }
+                if (this.isDrawing && this.pointers.size === 1 && this.onPointerMove) {
+                    this.onPointerMove(this.getCanvasPoint(e), e);
+                }
+            }
+
+            handlePointerUp(e) {
+                if (e.pointerType === 'mouse' && e.button === 1) { this.isMousePanning = false; return; }
+                this.pointers.delete(e.pointerId);
+
+                if (this.isDrawing && this.pointers.size === 0) {
+                    this.isDrawing = false;
+                    if (e.target.hasPointerCapture(e.pointerId)) e.target.releasePointerCapture(e.pointerId);
+                    if (this.onPointerUp) this.onPointerUp(this.getCanvasPoint(e), e);
+                }
+                if (this.pointers.size < 2) { this.lastPinchDistance = null; this.lastPinchCenter = null; }
+            }
+        }
+
+        class App {
+            constructor() {
+                this.canvasCore = new CanvasCore('main-canvas');
+                this.speedPencil = new SpeedPencil(this.canvasCore);
+                this.fsManager = new FileSystemManager(this);
+                this.bgManager = new BackgroundManager(this);
+                this.sampleManager = new SampleManager(this);
+                this.historyManager = new HistoryManager(this);
+                
+                this.canvasCore.onPointerDown = this.onDrawStart.bind(this);
+                this.canvasCore.onPointerMove = this.onDraw.bind(this);
+                this.canvasCore.onPointerUp = this.onDrawEnd.bind(this);
+                this.canvasCore.onPointerCancel = this.onDrawCancel.bind(this);
+                this.canvasCore.onPointerHover = this.onPointerHover.bind(this);
+                this.canvasCore.onPointerOut = this.onPointerOut.bind(this);
+                
+                this.settings = { uiScaleLevel: 0, pencilThickLevel: 0, pencilOpLevel: 0, handedness: 'right' };
+
+                this.setupDrawerGestures();
+                this.setupPostureToggle();
+                this.setupToolButtons();
+                this.setupLeftSliders();
+                this.setupFileButtons();
+                this.setupExportButtons();
+                this.setupSettingsModal();
+                this.setupUndoRedo();
+                this.setupPaperRotation();
+                
+                setTimeout(() => {
+                    this.loadSettingsFromDB();
+                    this.historyManager.saveState();
+                }, 500);
+            }
+
+            async loadSettingsFromDB() {
+                const saved = await this.fsManager.loadSettings();
+                if (saved) this.settings = Object.assign(this.settings, saved);
+                this.applySettingsToUI();
+                this.applySettingsToSystem();
+            }
+
+            async saveSettingsToDB() { await this.fsManager.saveSettings(this.settings); }
+
+            applySettingsToUI() {
+                document.getElementById('slider-ui-scale').value = this.settings.uiScaleLevel;
+                document.getElementById('left-slider-pencil-thick').value = this.settings.pencilThickLevel;
+                document.getElementById('left-slider-pencil-op').value = this.settings.pencilOpLevel;
+                const radios = document.getElementsByName('handedness');
+                for (let r of radios) r.checked = (r.value === this.settings.handedness);
+            }
+
+            applySettingsToSystem() {
+                const baseUiScale = 100;
+                const uiScaleVal = baseUiScale + (this.settings.uiScaleLevel * 5);
+                document.documentElement.style.setProperty('--ui-scale', ((uiScaleVal / 100) * 0.9).toFixed(3));
+                this.speedPencil.setPencilThickness(4 + parseInt(this.settings.pencilThickLevel));
+                this.speedPencil.setPencilOpacityScale((15 + (this.settings.pencilOpLevel * 3)) / 100);
+                this.speedPencil.setHandedness(this.settings.handedness);
+                const body = document.getElementById('app-body');
+                const btnFloatLeft = document.getElementById('btn-float-left');
+                const btnFloatRight = document.getElementById('btn-float-right');
+
+                if (this.settings.handedness === 'left') {
+                    body.classList.add('flex-reverse');
+                    btnFloatLeft.textContent = '＜'; btnFloatRight.textContent = '＞';
+                    btnFloatLeft.style.left = 'auto'; btnFloatLeft.style.right = '1rem';
+                    btnFloatRight.style.right = 'auto'; btnFloatRight.style.left = '1rem';
+                } else {
+                    body.classList.remove('flex-reverse');
+                    btnFloatLeft.textContent = '＞'; btnFloatRight.textContent = '＜';
+                    btnFloatLeft.style.right = 'auto'; btnFloatLeft.style.left = '1rem';
+                    btnFloatRight.style.left = 'auto'; btnFloatRight.style.right = '1rem';
+                }
+            }
+
+            setupDrawerGestures() {
+                const leftPane = document.getElementById('left-pane');
+                const rightPane = document.getElementById('right-pane');
+                const btnFloatLeft = document.getElementById('btn-float-left');
+                const btnFloatRight = document.getElementById('btn-float-right');
+                const btnCloseLeft = document.getElementById('btn-close-left');
+                const btnCloseRight = document.getElementById('btn-close-right');
+
+                const openLeft = () => { leftPane.classList.add('open'); rightPane.classList.remove('open'); };
+                const closeLeft = () => leftPane.classList.remove('open');
+                const openRight = () => { rightPane.classList.add('open'); leftPane.classList.remove('open'); };
+                const closeRight = () => rightPane.classList.remove('open');
+
+                btnFloatLeft.onclick = () => leftPane.classList.contains('open') ? closeLeft() : openLeft();
+                btnFloatRight.onclick = () => rightPane.classList.contains('open') ? closeRight() : openRight();
+                btnCloseLeft.onclick = closeLeft;
+                btnCloseRight.onclick = closeRight;
+
+                // --- エッジフリック / スワイプジェスチャー ---
+                let startX = 0, startY = 0, currentPane = null;
+
+                // 左端エッジ検出 -> 左ペイン開く
+                document.getElementById('edge-left').addEventListener('touchstart', (e) => {
+                    startX = e.touches[0].clientX;
+                    startY = e.touches[0].clientY;
+                }, { passive: true });
+
+                document.getElementById('edge-left').addEventListener('touchend', (e) => {
+                    const dx = e.changedTouches[0].clientX - startX;
+                    const dy = Math.abs(e.changedTouches[0].clientY - startY);
+                    if (dx > 30 && dy < 60) openLeft();
+                }, { passive: true });
+
+                // 右端エッジ検出 -> 右ペイン開く
+                document.getElementById('edge-right').addEventListener('touchstart', (e) => {
+                    startX = e.touches[0].clientX;
+                    startY = e.touches[0].clientY;
+                }, { passive: true });
+
+                document.getElementById('edge-right').addEventListener('touchend', (e) => {
+                    const dx = startX - e.changedTouches[0].clientX;
+                    const dy = Math.abs(e.changedTouches[0].clientY - startY);
+                    if (dx > 30 && dy < 60) openRight();
+                }, { passive: true });
+
+                // ペイン内からの閉じるスワイプ
+                leftPane.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; }, { passive: true });
+                leftPane.addEventListener('touchend', (e) => {
+                    const dx = startX - e.changedTouches[0].clientX;
+                    const dy = Math.abs(e.changedTouches[0].clientY - startY);
+                    if (dx > 40 && dy < 60) closeLeft();
+                }, { passive: true });
+
+                rightPane.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; }, { passive: true });
+                rightPane.addEventListener('touchend', (e) => {
+                    const dx = e.changedTouches[0].clientX - startX;
+                    const dy = Math.abs(e.changedTouches[0].clientY - startY);
+                    if (dx > 40 && dy < 60) closeRight();
+                }, { passive: true });
+
+                this.closeDrawers = () => { closeLeft(); closeRight(); };
+            }
+
+            setupPostureToggle() {
+                const btnTateru = document.getElementById('btn-posture-tateru');
+                const btnNekaseru = document.getElementById('btn-posture-nekaseru');
+                btnTateru.onclick = () => {
+                    btnTateru.classList.add('posture-active'); btnNekaseru.classList.remove('posture-active');
+                    this.speedPencil.setPosture('tateru');
+                };
+                btnNekaseru.onclick = () => {
+                    btnNekaseru.classList.add('posture-active'); btnTateru.classList.remove('posture-active');
+                    this.speedPencil.setPosture('nekaseru');
+                };
+            }
+
+            setupPaperRotation() {
+                const btnRotate = document.getElementById('btn-rotate-paper');
+                if (btnRotate) btnRotate.onclick = () => {
+                    this.canvasCore.rotatePaper();
+                    this.historyManager.saveState();
+                };
+            }
+
+            setupLeftSliders() {
+                const sliderThick = document.getElementById('left-slider-pencil-thick');
+                const sliderOp = document.getElementById('left-slider-pencil-op');
+
+                const handleSliderChange = () => {
+                    this.settings.pencilThickLevel = parseInt(sliderThick.value);
+                    this.settings.pencilOpLevel = parseInt(sliderOp.value);
+                    this.applySettingsToSystem();
+                    this.saveSettingsToDB();
+                };
+
+                sliderThick.addEventListener('input', handleSliderChange);
+                sliderOp.addEventListener('input', handleSliderChange);
+            }
+
+            setupToolButtons() {
+                const btnEraser = document.getElementById('btn-eraser');
+                const selectedColorNameDiv = document.getElementById('selected-color-name');
+
+                const colors = [
+                    { hex: '#334155', name: '黒' }, { hex: '#808080', name: '灰色' }, { hex: '#FFFFFF', name: '白' },
+                    { hex: '#FFEC00', name: '黄' }, { hex: '#FFA800', name: '山吹' }, { hex: '#FFDBC1', name: '薄橙' },
+                    { hex: '#FF6600', name: '橙' }, { hex: '#C38D36', name: '黄土' }, { hex: '#FF80AB', name: '桃' },
+                    { hex: '#E60012', name: '赤' }, { hex: '#FF4500', name: '朱' }, { hex: '#8A3B11', name: '茶' },
+                    { hex: '#4A2311', name: '焦茶' }, { hex: '#66CCFF', name: '水色' }, { hex: '#0066CC', name: '青' },
+                    { hex: '#8CDE00', name: '黄緑' }, { hex: '#009944', name: '緑' }, { hex: '#004D25', name: '深緑' },
+                    { hex: '#B51A64', name: '赤紫' }, { hex: '#702382', name: '紫' }, { hex: '#1D399B', name: '群青' },
+                    { hex: '#8A2BE2', name: '菫' }, { hex: '#A8B0B8', name: '銀' }, { hex: '#C5A059', name: '金' }
+                ];
+
+                const paletteContainer = document.getElementById('color-palette');
+                const paletteBtns = [];
+
+                colors.forEach(colorObj => {
+                    const btn = document.createElement('button');
+                    btn.className = 'w-full h-6 rounded shadow-sm border transition-all';
+                    if (colorObj.hex.toUpperCase() === '#FFFFFF') btn.classList.add('border-slate-300');
+                    else btn.classList.add('border-transparent');
+                    btn.style.backgroundColor = colorObj.hex;
+                    
+                    btn.onclick = () => {
+                        paletteBtns.forEach(b => {
+                            b.classList.remove('border-slate-800', 'scale-105', 'ring-2', 'ring-slate-700');
+                            if (b.dataset.hex.toUpperCase() === '#FFFFFF') b.classList.add('border-slate-300');
+                        });
+                        btnEraser.classList.remove('tool-active');
+                        if (colorObj.hex.toUpperCase() === '#FFFFFF') btn.classList.remove('border-slate-300');
+                        btn.classList.add('border-slate-800', 'scale-105', 'ring-2', 'ring-slate-700');
+                        
+                        const toolType = (colorObj.hex === '#334155') ? 'pencil' : 'colored';
+                        this.speedPencil.setTool(toolType, colorObj.hex);
+                        this.updateEraserCursor(null);
+                        selectedColorNameDiv.textContent = colorObj.name;
+                        
+                        // 選択後、自動でドロワーを閉じる
+                        if (this.closeDrawers) this.closeDrawers();
+                    };
+                    btn.dataset.hex = colorObj.hex;
+                    btn.dataset.name = colorObj.name;
+                    paletteContainer.appendChild(btn);
+                    paletteBtns.push(btn);
+                });
+
+                btnEraser.onclick = () => { 
+                    paletteBtns.forEach(b => {
+                        b.classList.remove('border-slate-800', 'scale-105', 'ring-2', 'ring-slate-700');
+                        if (b.dataset.hex.toUpperCase() === '#FFFFFF') b.classList.add('border-slate-300');
+                    });
+                    btnEraser.classList.add('tool-active'); 
+                    this.speedPencil.setTool('eraser'); 
+                    this.updateEraserCursor(null); 
+                    if (this.closeDrawers) this.closeDrawers();
+                };
+
+                // 初期状態：黒
+                if (paletteBtns.length > 0) paletteBtns[0].click();
+            }
+
+            setupFileButtons() {
+                document.getElementById('btn-load').onclick = () => this.fsManager.loadFile();
+                document.getElementById('btn-save-as').onclick = () => this.fsManager.saveAsFile();
+            }
+
+            setupExportButtons() {
+                const doneModal = document.getElementById('done-modal');
+                document.getElementById('btn-done').onclick = () => doneModal.classList.remove('hidden');
+                document.getElementById('btn-close-done').onclick = () => doneModal.classList.add('hidden');
+
+                document.getElementById('btn-export-bg').onclick = () => this.exportImage('bg');
+                document.getElementById('btn-export-paper').onclick = () => this.exportImage('paper');
+                document.getElementById('btn-export-transparent').onclick = () => this.exportImage('transparent');
+            }
+
+            exportImage(type) {
+                const canvas = document.createElement('canvas');
+                const rot = this.canvasCore.transform.rotation % 360;
+                const isVertical = Math.abs(rot) === 90 || Math.abs(rot) === 270;
+                canvas.width = isVertical ? this.canvasCore.height : this.canvasCore.width;
+                canvas.height = isVertical ? this.canvasCore.width : this.canvasCore.height;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.save();
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(rot * Math.PI / 180);
+                
+                if (type === 'bg') {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(-this.canvasCore.width / 2, -this.canvasCore.height / 2, this.canvasCore.width, this.canvasCore.height);
+                    ctx.drawImage(this.bgManager.bgCanvas, -this.canvasCore.width / 2, -this.canvasCore.height / 2);
+                } else if (type === 'paper') {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(-this.canvasCore.width / 2, -this.canvasCore.height / 2, this.canvasCore.width, this.canvasCore.height);
+                }
+                
+                ctx.drawImage(this.canvasCore.canvas, -this.canvasCore.width / 2, -this.canvasCore.height / 2);
+                ctx.restore();
+
+                let finalCanvas = canvas;
+                if (type === 'transparent') {
+                    finalCanvas = this.cropCanvas(canvas);
+                }
+
+                const dataURL = finalCanvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = dataURL;
+                a.download = `empitsu_${new Date().getTime()}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                document.getElementById('done-modal').classList.add('hidden');
+            }
+
+            cropCanvas(canvas) {
+                const ctx = canvas.getContext('2d');
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+                let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
+                let hasPixel = false;
+                
+                for (let y = 0; y < canvas.height; y++) {
+                    for (let x = 0; x < canvas.width; x++) {
+                        const alpha = data[(y * canvas.width + x) * 4 + 3];
+                        if (alpha > 0) {
+                            if (x < minX) minX = x;
+                            if (x > maxX) maxX = x;
+                            if (y < minY) minY = y;
+                            if (y > maxY) maxY = y;
+                            hasPixel = true;
+                        }
+                    }
+                }
+                
+                if (!hasPixel) return canvas;
+                
+                const margin = 10;
+                minX = Math.max(0, minX - margin);
+                minY = Math.max(0, minY - margin);
+                maxX = Math.min(canvas.width - 1, maxX + margin);
+                maxY = Math.min(canvas.height - 1, maxY + margin);
+                
+                const w = maxX - minX + 1;
+                const h = maxY - minY + 1;
+                
+                const cropCanvas = document.createElement('canvas');
+                cropCanvas.width = w;
+                cropCanvas.height = h;
+                const cropCtx = cropCanvas.getContext('2d');
+                cropCtx.putImageData(ctx.getImageData(minX, minY, w, h), 0, 0);
+                
+                return cropCanvas;
+            }
+
+            setupUndoRedo() {
+                document.getElementById('btn-undo').onclick = () => this.historyManager.undo();
+                document.getElementById('btn-redo').onclick = () => this.historyManager.redo();
+            }
+
+            setupSettingsModal() {
+                const modal = document.getElementById('settings-modal');
+                const btnSettings = document.getElementById('btn-settings');
+                const btnClose = document.getElementById('btn-close-settings');
+                const btnApply = document.getElementById('btn-apply-settings');
+                const sliderUiScale = document.getElementById('slider-ui-scale');
+                const radioHandedness = document.getElementsByName('handedness');
+
+                btnSettings.onclick = () => modal.classList.remove('hidden');
+                const closeAndSave = () => { modal.classList.add('hidden'); this.saveSettingsToDB(); };
+                btnClose.onclick = closeAndSave;
+                btnApply.onclick = closeAndSave;
+
+                const handleSettingChange = () => {
+                    this.settings.uiScaleLevel = parseInt(sliderUiScale.value);
+                    for (let r of radioHandedness) {
+                        if (r.checked) { this.settings.handedness = r.value; break; }
+                    }
+                    this.applySettingsToSystem();
+                };
+
+                sliderUiScale.addEventListener('input', handleSettingChange);
+                for (let r of radioHandedness) r.addEventListener('change', handleSettingChange);
+            }
+
+            updateEraserCursor(point) {
+                const cursor = document.getElementById('eraser-cursor');
+                if (this.speedPencil.tool === 'eraser' && point) {
+                    cursor.classList.remove('hidden');
+                    cursor.style.left = `${point.x}px`;
+                    cursor.style.top = `${point.y}px`;
+                } else {
+                    cursor.classList.add('hidden');
+                }
+            }
+
+            onDrawStart(point, event) { 
+                if (this.closeDrawers) this.closeDrawers();
+                this.speedPencil.start(point); 
+                this.updateEraserCursor(point);
+            }
+            onDraw(point, event) { 
+                this.speedPencil.draw(point); 
+                this.updateEraserCursor(point);
+            }
+            onDrawEnd(point, event) { 
+                this.speedPencil.end(); 
+                if (event.pointerType !== 'mouse') {
+                    this.updateEraserCursor(null);
+                }
+                this.historyManager.saveState();
+            }
+            onDrawCancel() { 
+                this.speedPencil.end(); 
+                this.updateEraserCursor(null);
+                if (this.historyManager.undoStack.length > 0) {
+                    this.historyManager.restoreState(this.historyManager.undoStack[this.historyManager.undoStack.length - 1]);
+                }
+            }
+            onPointerHover(point, event) {
+                this.updateEraserCursor(point);
+            }
+            onPointerOut() {
+                this.updateEraserCursor(null);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const app = new App();
+        });
+    </script>
+</body>
+</html>
